@@ -4,7 +4,17 @@ using SafeVault;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "dev-only-key-change-in-production-0123456789";
+// No predictable fallback key outside Development (fail closed).
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    if (!builder.Environment.IsDevelopment())
+        throw new InvalidOperationException("Jwt:Key must be configured outside Development.");
+    jwtKey = "dev-only-key-change-in-production-0123456789"; // development only
+}
+if (jwtKey.Length < 32)
+    throw new InvalidOperationException("Jwt:Key must be at least 32 characters.");
+
 var cs = builder.Configuration["ConnectionStrings:Default"] ?? "Data Source=safevault.db";
 
 var repo = new UserRepository(cs);
@@ -24,6 +34,13 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("AdminOnly", p => p.RequireRole("Admin")));
 
 var app = builder.Build();
+
+// HTTPS enforcement outside Development (tokens must not travel over plain HTTP).
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+    app.UseHttpsRedirection();
+}
 
 // Optional admin seed (admin accounts can never be self-registered).
 var seedPw = app.Configuration["Seed:AdminPassword"];
