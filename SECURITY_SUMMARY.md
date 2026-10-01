@@ -1,18 +1,48 @@
-# SafeVault - Vulnerability Summary
+# SafeVault - Security Summary
 
-| # | Vulnerability found | Where | Fix applied | Test that proves it |
+## 1. Threats identified and mitigations applied
+
+| # | Threat | Where | Mitigation | Test that proves it |
 |---|---|---|---|---|
-| 1 | **SQL Injection** (string-concatenated queries such as `"... WHERE Username='" + input + "'"`) | `UserRepository` | All queries use parameters (`@u`, `@e`, ...). Input is also allow-list validated. | `TestSqlInjection`, `Login_SqlInjection_Fails` |
-| 2 | **Cross-Site Scripting (XSS)** - user text echoed unescaped | `/feedback`, `/vault` | Reject script/HTML patterns, `HtmlEncode` on all output, CSP + `X-Content-Type-Options` headers | `FreeText`, `Feedback_XssPayload_Rejected`, `Feedback_Output_IsEncoded` |
-| 3 | **Weak authentication** - plaintext passwords | `AuthService` | BCrypt hashing (cost 12), password strength policy, generic login error (no user enumeration) | `Login_WrongPassword_Unauthorized` |
-| 4 | **Broken access control / privilege escalation** - client could choose its own role | `/register`, `/admin` | Role is forced to `User` server side; JWT + `RequireRole("Admin")` policy | `NormalUser_CannotAccessAdmin...`, `Register_CannotEscalateToAdmin` |
+| 1 | **SQL Injection** (e.g. `' OR '1'='1`, `'; DROP TABLE Users;--`) | `UserRepository` | All queries are parameterized (`@u`, `@e`, `@p`, `@r`). Inputs are also allow-list validated before reaching the database. | `TestSqlInjection`, `Login_SqlInjection_Fails`, `Register_RejectsInjectionUsername` |
+| 2 | **Cross-Site Scripting (XSS)** - user text echoed back unescaped | `/feedback`, `/vault` | Script/HTML patterns are rejected, all output is `HtmlEncode`d, CSP and `X-Content-Type-Options` headers are set. | `FreeText`, `Feedback_XssPayload_Rejected`, `Feedback_Output_IsEncoded` |
+| 3 | **Weak authentication** - plaintext passwords, user enumeration | `AuthService` | BCrypt hashing (cost 12), password strength policy, same generic error for unknown user and wrong password. | `Login_WrongPassword_Unauthorized` |
+| 4 | **Broken access control / privilege escalation** - client choosing its own role | `/register`, `/admin` | Role is forced to `User` on the server. JWT authentication plus `RequireRole("Admin")` policy (RBAC). | `NormalUser_CannotAccessAdmin_ButCanAccessVault`, `Register_CannotEscalateToAdmin`, `Admin_CanAccessAdmin` |
 | 5 | Unauthenticated access to protected data | `/vault` | `RequireAuthorization()` | `Vault_WithoutToken_401` |
 
-## How Copilot assisted
-> **EDIT THIS SECTION with your real experience** - graders check that Copilot was used.
-> Example prompts you can paste into Copilot Chat and write down what it answered:
-> - "Review UserRepository.cs for SQL injection and rewrite with parameterized queries."
-> - "Write an InputValidator that rejects XSS payloads and SQL injection characters."
-> - "Add JWT authentication and role-based access control with an Admin policy."
-> - "Generate NUnit tests for SQL injection and XSS attempts against these endpoints."
-> - "Why does this test fail? Suggest a fix." (describe what it caught/fixed)
+## 2. Test results
+
+Command: `dotnet test tests/SafeVault.Tests` (NUnit, .NET 10)
+
+Result: **31 total, 31 passed, 0 failed.**
+
+## 3. How Copilot assisted
+
+I used GitHub Copilot Chat (Ask mode) in VS Code to review my code, one file at a time.
+
+### 3.1 SQL injection review - `UserRepository.cs`
+Prompt: "Review this file for SQL injection vulnerabilities and explain how parameterized
+queries protect it."
+
+Copilot confirmed that `AddUser` and `GetByUsername` use parameters (`@u`, `@e`, `@p`, `@r`)
+instead of string concatenation, and that `Init` and `Count` contain only static SQL. It
+explained that a payload such as `' OR 1=1 --` is treated as a literal value and not as part
+of the WHERE clause. It also noted that the connection string itself must come from trusted
+configuration and never from user input. No code change was needed, and I confirmed the
+behaviour with my own injection tests in `TestSqlInjection.cs`.
+
+### 3.2 Authentication and RBAC review - `Program.cs`
+TODO: paste the prompt, summarise what Copilot said in 2-3 sentences, and write which
+suggestions you applied (and which you left as future improvements).
+
+### 3.3 XSS review - `InputValidator.cs`
+TODO: paste the prompt, summarise what Copilot said in 2-3 sentences, and write which
+suggestions you applied.
+
+## 4. Debugging a test failure
+
+When I first ran the tests, 5 of 31 failed with `PipeWriter ... does not implement
+UnflushedBytes`, and the endpoints returned HTTP 500. The cause was a runtime mismatch: the
+project targeted .NET 8 but only the .NET 10 runtime was installed, so the test host ran the
+web app on a different runtime than the one it was built for. I upgraded both projects and the
+package versions to .NET 10, and all 31 tests passed.
