@@ -1,7 +1,10 @@
 # SafeVault
 
-Secure ASP.NET Core 8 demo: input validation, SQL-injection prevention, XSS defence,
+Secure ASP.NET Core 10 demo: input validation, SQL-injection prevention, XSS defence,
 JWT authentication and role-based access control (RBAC). See `SECURITY_SUMMARY.md`.
+
+## Requirements
+- .NET 10 SDK
 
 ## Run
 ```
@@ -12,6 +15,13 @@ Set `Seed:AdminPassword` (e.g. `dotnet user-secrets` or env var `Seed__AdminPass
 
 ## Test
 ```
-dotnet test
+dotnet test tests/SafeVault.Tests
 ```
-Endpoints: `POST /register`, `POST /login`, `POST /feedback`, `GET /vault` (any logged-in user), `GET /admin` (Admin only).
+Result: 31 tests, 31 passed, 0 failed (NUnit).
+
+## Endpoints
+- `POST /register`: create a normal user (role is always `User`)
+- `POST /login`: returns a JWT
+- `POST /feedback`: validated and HTML-encoded text
+- `GET /vault`: any logged-in user
+- `GET /admin`: Admin role only
