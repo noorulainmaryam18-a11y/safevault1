@@ -50,7 +50,7 @@ if (!string.IsNullOrEmpty(seedPw) && repo.GetByUsername("admin") is null)
 // Security headers (XSS / clickjacking mitigation)
 app.Use(async (ctx, next) =>
 {
-    ctx.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none'";
+    ctx.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
     ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
     ctx.Response.Headers["X-Frame-Options"] = "DENY";
     await next();
