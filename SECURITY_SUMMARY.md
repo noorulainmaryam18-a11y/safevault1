@@ -1,18 +1,24 @@
-### 3.2 Authentication and RBAC review - `Program.cs`
-Prompt: "Review the authentication and role-based access control in this file and suggest
-security improvements."
+### 3.3 XSS review - `InputValidator.cs`
+Prompt: "Check this for XSS bypasses and suggest improvements."
 
-Copilot confirmed that the core flow is sound: authentication runs before authorization,
-`/vault` requires a valid token, `/admin` requires the `AdminOnly` policy, registration always
-assigns the `User` role, and JWT issuer, audience, lifetime and signing key are validated. It
-also flagged these risks:
+Copilot judged the code reasonably defensive for `/feedback` and `/vault`, because values are
+encoded before they are returned or displayed, but it pointed out limits:
 
-1. A predictable fallback JWT key (critical): **applied** - the app now refuses to start
-   outside Development without `Jwt:Key`, and rejects keys shorter than 32 characters.
-2. No HTTPS enforcement (high): **applied** - HSTS and HTTPS redirection are enabled outside
-   Development.
-3. Admin password seeding, no token revocation, and no brute-force protection on `/login`
-   (medium): **not applied yet**. Planned improvements are a secret store for the seed
-   password, shorter-lived tokens with refresh rotation, and rate limiting on `/login`.
+1. The denylist regex (`SuspiciousRx`) cannot cover every HTML, SVG, CSS, URL or JavaScript
+   attack form, so it must not be the primary XSS defence. I agree: the real protection is
+   output encoding plus the Content-Security-Policy; the regex is an extra layer that also
+   rejects obviously malicious input early.
+2. `HtmlEncode` is only correct for HTML text, not for attributes, JavaScript, CSS or URLs.
+   Currently the app only returns HTML-text values, but any new output context needs its own
+   encoder.
+3. Encoding inside a JSON response can cause double encoding. Copilot recommends returning
+   the original validated text and encoding only at the HTML rendering step. I kept the
+   current behaviour for now because my test `Feedback_Output_IsEncoded` and the API are built
+   on it; changing it is a planned improvement.
+4. Add an explicit length check before the username regex and a request-body size limit
+   (planned).
 
-After the changes I re-ran `dotnet test`: 31 of 31 tests still pass.
+**Applied:** I strengthened the CSP with `base-uri 'self'` and `frame-ancestors 'none'`, and
+re-ran `dotnet test` (31 of 31 pass). **Planned:** more XSS payload tests (event handlers,
+SVG, CSS, URL schemes, HTML entities), body-size limits, and moving encoding to the rendering
+layer.
